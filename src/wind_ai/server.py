@@ -7,39 +7,7 @@ from typing import Literal
 
 import hbtools
 
-from wind_ai.utils.server_utils import get_json, get_completion, random_values
-
-
-def recv_end(listening_socket: socket.socket, end: str = "<EOF>", buffer_size: int = 4096) -> str:
-    """Receive data from the given socket until the socket disconnects or the end message signal is received.
-
-    Args:
-        listening_socket: The socket to listen to.
-        end: The end string that signals that the message has been received in its entirety.
-        buffer_size: Buffer to use for the socket.
-
-    Returns:
-        The data received from the socket, as a utf-8 string.
-    """
-    end_bytes = end.encode()
-    total_data: list[bytes] = []
-    data = ""
-    while True:
-        data = listening_socket.recv(buffer_size)
-        if not data:  # recv return empty message if client disconnects
-            return data.decode("utf-8")
-        if end_bytes in data:
-            total_data.append(data[:data.find(end_bytes)])
-            break
-        total_data.append(data)
-        if len(total_data) > 1:
-            # check if end_of_data was split
-            last_pair = total_data[-2] + total_data[-1]
-            if end_bytes in last_pair:
-                total_data[-2] = last_pair[:last_pair.find(end_bytes)]
-                total_data.pop()
-                break
-    return b"".join(total_data).decode("utf-8")
+from wind_ai.utils.server_utils import get_completion, get_json, random_values, recv_end
 
 
 def main() -> None:
