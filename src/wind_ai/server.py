@@ -1,15 +1,13 @@
 import argparse
-import logging
-import traceback
 import json
+import logging
 import socket
+import traceback
 from typing import Literal
 
 import hbtools
 
-# from wind_ai.utils.server_utils import get_json, get_completion, random_values
-from .utils.server_utils import get_json, get_completion, random_values
-
+from wind_ai.utils.server_utils import get_json, get_completion, random_values
 
 
 def recv_end(listening_socket: socket.socket, end: str = "<EOF>", buffer_size: int = 4096) -> str:
@@ -44,7 +42,7 @@ def recv_end(listening_socket: socket.socket, end: str = "<EOF>", buffer_size: i
     return b"".join(total_data).decode("utf-8")
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", "-p", type=int, default=9000, help="Port for the socket")
     parser.add_argument("--verbose_level", "-v", choices=["debug", "info", "error"], default="info", type=str,
@@ -59,16 +57,16 @@ def main():
     # Creating TCP socket server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind(("0.0.0.0", port))  # listening for any incoming IP
+    server_socket.bind(("0.0.0.0", port))  # noqa: S104  # listening for any incoming IP
     server_socket.listen(5)
 
     try:
         while True:
             try:
                 while True:  # keep receiving and sending message while client connected
-                    logger.info("Listen for client on port {}".format(port))
+                    logger.info(f"Listen for client on port {port}")
                     (_client_socket, client_address) = server_socket.accept()
-                    logger.debug("Client connected at address {}".format(client_address))
+                    logger.debug(f"Client connected at address {client_address}")
 
                     prompt = recv_end(server_socket)
 
@@ -80,7 +78,7 @@ def main():
                     words = get_json(response)
                     logging.debug(f"ChatGPT answer: {response}")
 
-                    output: dict[str, dict[str, float]] | None = None
+                    output: str | None = None
                     for _ in range(2):
                         try:
                             output = json.loads(words)
@@ -89,11 +87,11 @@ def main():
                         except json.decoder.JSONDecodeError:
                             words = get_json(response, temperature=0.5)  # Retry with different temperature
                     if output is None:
-                        logging.debug(f"ChatGPT failed, using random.")
+                        logging.debug("ChatGPT failed, using random.")
                         output = random_values()  # Generate random intensity values if parsing fails
 
             except (BrokenPipeError, json.decoder.JSONDecodeError):
-                logger.error("Could not decode json", exc_info=True)
+                logger.exception("Could not decode json")
                 pass
             except Exception:
                 logger.exception(traceback.format_exc())

@@ -43,7 +43,8 @@ select = ["ALL"]
 # D213: multi-line-summary-second-line  (incompatible)
 # D407: Missing dashed underline after section ("Args", "Returns")
 # ERA001: Found commented-out code
-ignore = ["D1", "D203", "D213", "D407", "ERA001", "TRY"]
+# G004: Logging statement uses f-string
+ignore = ["D1", "D203", "D213", "D407", "ERA001", "G004", "S311", "TRY"]
 line-length = 120
 
 [tool.ruff.isort]
