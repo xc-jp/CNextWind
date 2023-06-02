@@ -7,7 +7,8 @@ from typing import Literal
 
 import hbtools
 
-from wind_ai.utils import get_json, get_completion, random_values
+# from wind_ai.utils.server_utils import get_json, get_completion, random_values
+from .utils.server_utils import get_json, get_completion, random_values
 
 
 
