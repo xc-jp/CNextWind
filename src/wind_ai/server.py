@@ -1,97 +1,108 @@
 import argparse
-import os
-import openai
+import logging
+import traceback
 import json
-import random
 import socket
-from dotenv import load_dotenv, find_dotenv
+from typing import Literal
 
-_ = load_dotenv(find_dotenv())  # read local .env file
-openai.api_key = os.getenv('OPENAI_API_KEY')
+import hbtools
+
+from wind_ai.utils import get_json, get_completion, random_values
 
 
-def receive_prompt_from_socket():
-    # Function to receive prompt from a socket connection
-    HOST = 'localhost'  # Example host
-    PORT = 12345  # Example port
 
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind((HOST, PORT))
-        s.listen(1)
-        print(f"Listening on {HOST}:{PORT}...")
+def recv_end(listening_socket: socket.socket, end: str = "<EOF>", buffer_size: int = 4096) -> str:
+    """Receive data from the given socket until the socket disconnects or the end message signal is received.
 
-        conn, addr = s.accept()
-        print(f"Connection established with {addr[0]}:{addr[1]}")
+    Args:
+        listening_socket: The socket to listen to.
+        end: The end string that signals that the message has been received in its entirety.
+        buffer_size: Buffer to use for the socket.
 
-        data = conn.recv(1024).decode()
-        conn.close()
-
-        return data
+    Returns:
+        The data received from the socket, as a utf-8 string.
+    """
+    end_bytes = end.encode()
+    total_data: list[bytes] = []
+    data = ""
+    while True:
+        data = listening_socket.recv(buffer_size)
+        if not data:  # recv return empty message if client disconnects
+            return data.decode("utf-8")
+        if end_bytes in data:
+            total_data.append(data[:data.find(end_bytes)])
+            break
+        total_data.append(data)
+        if len(total_data) > 1:
+            # check if end_of_data was split
+            last_pair = total_data[-2] + total_data[-1]
+            if end_bytes in last_pair:
+                total_data[-2] = last_pair[:last_pair.find(end_bytes)]
+                total_data.pop()
+                break
+    return b"".join(total_data).decode("utf-8")
 
 
 def main():
-    # Parse command-line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--prompt", type=str, help="The prompt for the conversation")
+    parser.add_argument("--port", "-p", type=int, default=9000, help="Port for the socket")
+    parser.add_argument("--verbose_level", "-v", choices=["debug", "info", "error"], default="info", type=str,
+                        help="Logger level.")
     args = parser.parse_args()
 
-    def get_completion(prompt, model="gpt-3.5-turbo"):
-        # Function to get chat completion from OpenAI API
-        messages = [{"role": "system", "content": "Answer using 50 words at most"}, {"role": "user", "content": prompt}]
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=messages,
-            temperature=0,  # this is the degree of randomness of the model's output
-        )
-        return response.choices[0].message["content"]
+    port: int = args.port
+    verbose_level: Literal["debug", "info", "error"] = args.verbose_level
 
-    def get_Json(prompt, model="gpt-3.5-turbo", temperature=0):
-        # Function to get JSON text with intensity scores from OpenAI API
-        messages = [{"role": "system", "content": 'Generate a JSON text with intensity scores (float value from 0 to 1) corresponding to the amount of change the tokens in that word modify the embeddings of the sentence when replacing that word for its antonymous. \
-        your answer should only include Json and should be formatted like the following example\
-                     {\
-              "Love": {"intensity": 0.9},\
-              "intricate": {"intensity": 0.7},\
-              "tapestry": {"intensity": 0.5},\
-              "emotions": {"intensity": 0.8}\
-                    }"'}, 
-                {"role": "user", "content": prompt}
-        ]
-        response = openai.ChatCompletion.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,  # this is the degree of randomness of the model's output
-        )
-        return response.choices[0].message["content"]
+    logger = hbtools.create_logger("PickingEngine", verbose_level=verbose_level)
+
+    # Creating TCP socket server
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind(("0.0.0.0", port))  # listening for any incoming IP
+    server_socket.listen(5)
 
     try:
         while True:
-            if args.prompt:
-                prompt = args.prompt  # Use prompt from command-line argument
-            else:
-                prompt = receive_prompt_from_socket()  # Receive prompt from socket
+            try:
+                while True:  # keep receiving and sending message while client connected
+                    logger.info("Listen for client on port {}".format(port))
+                    (_client_socket, client_address) = server_socket.accept()
+                    logger.debug("Client connected at address {}".format(client_address))
 
-            response = get_completion(prompt)  # Get chat completion response from OpenAI
-            words = get_Json(response)  # Get JSON text with intensity scores
+                    prompt = recv_end(server_socket)
 
-            def random_values():
-                # Fail safe function to generate random intensity values for words
-                values = f'{{"Akihabara": {{"intensity": {random.random()}}}, "district": {{"intensity": {random.random()}}}, "Tokyo": {{"intensity": {random.random()}}}, "Japan": {{"intensity": {random.random()}}}, "electronics": {{"intensity": {random.random()}}}, "shops": {{"intensity": {random.random()}}}, "anime": {{"intensity": {random.random()}}}, "manga": {{"intensity": {random.random()}}}, "stores": {{"intensity": {random.random()}}}, "video game": {{"intensity": {random.random()}}}, "arcades": {{"intensity": {random.random()}}}, "popular": {{"intensity": {random.random()}}}, "destination": {{"intensity": {random.random()}}}, "tourists": {{"intensity": {random.random()}}}, "locals": {{"intensity": {random.random()}}}, "interested": {{"intensity": {random.random()}}}, "technology": {{"intensity": {random.random()}}}, "gaming culture": {{"intensity": {random.random()}}}}}'
-                return json.loads(values)
+                    if not prompt:  # recv return empty message if client disconnects
+                        logger.debug("Message was empty")
+                        break
 
-            for i in range(2):
-                try:
-                    output = json.loads(words)  # Try to parse JSON response
-                    break
-                except json.decoder.JSONDecodeError:
-                    words = get_Json(response, temperature=0.5)  # Retry with different temperature
-                output = random_values()  # Generate random intensity values if parsing fails
-            print(response)
-            print(output)
+                    response = get_completion(prompt)
+                    words = get_json(response)
+                    logging.debug(f"ChatGPT answer: {response}")
 
+                    output: dict[str, dict[str, float]] | None = None
+                    for _ in range(2):
+                        try:
+                            output = json.loads(words)
+                            logging.debug(f"ChatGPT json output: {output}")
+                            break
+                        except json.decoder.JSONDecodeError:
+                            words = get_json(response, temperature=0.5)  # Retry with different temperature
+                    if output is None:
+                        logging.debug(f"ChatGPT failed, using random.")
+                        output = random_values()  # Generate random intensity values if parsing fails
+
+            except (BrokenPipeError, json.decoder.JSONDecodeError):
+                logger.error("Could not decode json", exc_info=True)
+                pass
+            except Exception:
+                logger.exception(traceback.format_exc())
+            logger.info("Client disconnected")
     except KeyboardInterrupt:
-        print("Program interrupted by the user.")
-        exit()
+        logger.debug("KeyboardInterrupt, exiting.")
+    server_socket.shutdown(socket.SHUT_RDWR)
+    server_socket.close()
+    logger.info("Host closed.")
+
 
 if __name__ == "__main__":
     main()
