@@ -1,12 +1,10 @@
-[project]
-name = "wind_ai"
-
 [tool.poetry]
 name = "wind_ai"
 version = "0.1.0"
 description = "CNext Wind AI"
 authors = ["Oneris Rico"]
 readme = "README.md"
+packages = [{include="wind_ai", from="src"}]
 
 [tool.poetry.scripts]
 wind-ai-start = "wind_ai.server:main"
@@ -52,12 +50,13 @@ line-length = 120
 
 [tool.ruff.isort]
 order-by-type = false
+known-first-party = ["wind_ai"]
 
 [tool.ruff.flake8-quotes]
 docstring-quotes = "double"
 
 [tool.pyright]
-include = ["src/woven-data-scientist-challenge"]
+include = ["src/wind_ai"]
 pythonVersion = "3.11"
 pythonPlatform = "Linux"
 
@@ -96,6 +95,7 @@ reportMatchNotExhaustive = "warning"
 max-line-length = 120
 docstring-convention = "google"
 import-order-style = "smarkets"
+application_import_names = "wind_ai"
 inline-quotes = "double"
 exclude = ["env", "venv"]
 # D1: Do not require docstrings
