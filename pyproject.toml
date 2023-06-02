@@ -2,7 +2,7 @@
 name = "wind_ai"
 version = "0.1.0"
 description = "CNext Wind AI"
-authors = ["Hoël Bagard"]
+authors = ["Oneris Rico"]
 readme = "README.md"
 
 [tool.poetry.scripts]
@@ -10,6 +10,7 @@ wind-ai-start = "wind_ai.server:main"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<4.0"
+hbtools = "^0.0.4"
 
 [tool.poetry.group.dev.dependencies]
 ruff = "0.0.270"
