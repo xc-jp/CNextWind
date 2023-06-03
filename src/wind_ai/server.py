@@ -20,7 +20,7 @@ def main() -> None:
     port: int = args.port
     verbose_level: Literal["debug", "info", "error"] = args.verbose_level
 
-    logger = hbtools.create_logger("PickingEngine", verbose_level=verbose_level)
+    logger = hbtools.create_logger("WindAI Server", verbose_level=verbose_level)
 
     # Creating TCP socket server
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
